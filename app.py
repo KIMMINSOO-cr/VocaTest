@@ -135,14 +135,20 @@ def submit_test():
 
         # 유사어 채점 (대소문자 무시, 입력한 것 중 하나라도 정답에 포함되면 정답)
         user_synonyms_list = {s.strip().lower() for s in user_synonyms_str.split(',') if s.strip()}
-        correct_synonyms_list = {s.strip().lower() for s in correct_data.get('synonyms', '').split(',') if s.strip()}
-        is_synonyms_correct = len(user_synonyms_list & correct_synonyms_list) > 0
+        correct_synonyms_str = correct_data.get('synonyms', '')
+        correct_synonyms_list = {s.strip().lower() for s in correct_synonyms_str.split(',') if s.strip()}
+        
+        # DB에 등록된 유사어가 아예 없을 때는 억울하게 틀리지 않도록 통과 처리
+        if not correct_synonyms_str.strip():
+            is_synonyms_correct = True
+        else:
+            is_synonyms_correct = len(user_synonyms_list & correct_synonyms_list) > 0
 
         # 출제 방식에 따른 메인 정답 채점
         if current_q_type == 'ko_to_en':
             user_ans = user_answers.get(f'word_ans_{i}', '').strip()
             correct_ans_str = correct_data['word']
-            is_correct = (user_ans.lower() == correct_data['word'].lower())
+            is_correct = (user_ans.lower() == correct_data['word'].strip().lower()) # DB에 들어간 공백 방지
             question_display = user_answers.get(f'asked_meaning_{i}', correct_data['meaning'])
         else:
             user_ans = user_answers.get(f'meaning_{i}', '').strip()
@@ -155,6 +161,7 @@ def submit_test():
 
         if is_correct:
             score += 1
+            is_synonyms_correct = True # 메인 정답(뜻/영어)이 맞으면 화면에서 틀렸다고 나오지 않게 강제로 True 처리
 
         results.append({
             'id': word_id,
