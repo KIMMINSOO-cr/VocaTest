@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>단어장 관리</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; background-color: #f4f4f9; }
+        h1 { color: #333; text-align: center; }
+        .container { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 800px; margin: auto; }
+        .input-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .input-row input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        .input-row input[name="word"] { flex-basis: 30%; }
+        .input-row input[name="meaning"] { flex-basis: 30%; }
+        .input-row input[name="synonyms"] { flex-basis: 40%; }
+        .btn { padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        .btn-primary { background-color: #28a745; color: white; width: 100%; margin-top: 1em; }
+        .btn-secondary { background-color: #6c757d; color: white; width: auto; margin-bottom: 1em; }
+        .btn-primary:hover { background-color: #218838; }
+        .btn-secondary:hover { background-color: #5a6268; }
+        input[type="submit"]:hover { background-color: #218838; }
+        .nav-link { display: block; text-align: center; margin-top: 1.5em; text-decoration: none; color: #007BFF; }
+        .nav-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>➕ 여러 단어 추가하기</h1>
+        <form action="/add_words" method="post">
+            <div style="margin-bottom: 20px; background: #eee; padding: 15px; border-radius: 5px;">
+                <label for="day" style="font-weight: bold; margin-right: 10px;">📅 이 단어들의 학습 일차 (Day) :</label>
+                <input type="number" id="day" name="day" value="1" min="1" required style="padding: 5px; width: 60px; font-size: 16px;">
+                
+                <span style="margin-left: 20px; font-weight: bold; color: #007BFF; float:right;">추가할 단어 수: <input type="number" id="row-count-input" value="1" min="1" style="padding: 5px; width: 60px; font-size: 16px;"> 개</span>
+            </div>
+
+            <div id="word-entry-rows">
+                <!-- 초기 입력 행 -->
+                <div class="input-row">
+                    <input type="text" name="word" placeholder="영어 단어 (필수)" required>
+                    <input type="text" name="meaning" placeholder="뜻 (필수)" required>
+                    <input type="text" name="synonyms" placeholder="유사어 (쉼표로 구분)">
+                </div>
+            </div>
+            
+            <button type="button" id="add-row-btn" class="btn" style="background-color: #17a2b8; color: white; margin-top: 10px; margin-bottom: 10px; width: 100%;">➕ 아래에 입력 칸 1개 더 만들기</button>
+
+            <input type="submit" value="입력한 단어 모두 저장하기" class="btn btn-primary">
+        </form>
+        <a href="/" class="nav-link">⬅️ 시험지로 돌아가기</a>
+    </div>
+
+    <script>
+        document.getElementById('row-count-input').addEventListener('input', function() {
+            const targetCount = parseInt(this.value) || 1;
+            const container = document.getElementById('word-entry-rows');
+            let currentCount = container.querySelectorAll('.input-row').length;
+            
+            // 목표 개수보다 현재 입력 칸이 적으면 칸을 추가합니다.
+            while (currentCount < targetCount) {
+                const newRow = document.createElement('div');
+                newRow.classList.add('input-row');
+                newRow.innerHTML = `
+                    <input type="text" name="word" placeholder="영어 단어 (필수)">
+                    <input type="text" name="meaning" placeholder="뜻 (필수)">
+                    <input type="text" name="synonyms" placeholder="유사어 (쉼표로 구분)">
+                `;
+                container.appendChild(newRow);
+                currentCount++;
+            }
+            
+            // 목표 개수보다 현재 입력 칸이 많으면 맨 아래 칸부터 삭제합니다.
+            while (currentCount > targetCount) {
+                container.removeChild(container.lastElementChild);
+                currentCount--;
+            }
+        });
+
+        // 맨 아래 '입력 칸 추가' 버튼 이벤트
+        document.getElementById('add-row-btn').addEventListener('click', function() {
+            const rowCountInput = document.getElementById('row-count-input');
+            rowCountInput.value = parseInt(rowCountInput.value) + 1;
+            rowCountInput.dispatchEvent(new Event('input')); // 입력 칸 수 변경 이벤트 강제 발생시켜 칸 추가
+        });
+
+        // 마지막 입력 칸에서 Tab 키 누를 때 새 칸 자동 추가 및 포커스 이동
+        document.getElementById('word-entry-rows').addEventListener('keydown', function(e) {
+            if (e.key === 'Tab' && !e.shiftKey) {
+                const inputs = this.querySelectorAll('input[type="text"]');
+                const lastInput = inputs[inputs.length - 1];
+                
+                if (e.target === lastInput) {
+                    e.preventDefault(); // 기본 Tab 이동 동작(버튼으로 이동) 방지
+                    document.getElementById('add-row-btn').click(); // 행 추가 버튼 클릭 효과 실행
+                    
+                    setTimeout(() => {
+                        const rows = this.querySelectorAll('.input-row');
+                        rows[rows.length - 1].querySelector('input[name="word"]').focus(); // 새로 추가된 행의 첫 칸으로 포커스
+                    }, 10);
+                }
+            }
+        });
+
+        // 동적으로 추가된 칸에 입력이 시작되면 해당 칸을 '필수'로 만들고, 
+        // 완전히 비우면 '선택(제출 시 무시)'으로 바꿔서 빈 칸 제출 시 오류가 나지 않게 합니다.
+        document.getElementById('word-entry-rows').addEventListener('input', function(e) {
+            const row = e.target.closest('.input-row');
+            if (!row) return;
+            
+            // 첫 번째 줄은 무조건 필수로 둡니다.
+            if (row === document.querySelector('.input-row')) return;
+
+            const word = row.querySelector('input[name="word"]');
+            const meaning = row.querySelector('input[name="meaning"]');
+            const synonyms = row.querySelector('input[name="synonyms"]');
+            
+            const hasInput = word.value.trim() !== '' || meaning.value.trim() !== '' || synonyms.value.trim() !== '';
+            word.required = hasInput;
+            meaning.required = hasInput;
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>채점 결과</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; background-color: #f4f4f9; }
+        .container { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 800px; margin: auto; }
+        h1, h2 { color: #333; text-align: center; }
+        .result-block { margin-bottom: 1.5em; border: 1px solid #ddd; padding: 1em; border-radius: 5px; }
+        .correct { border-left: 5px solid #28a745; }
+        .incorrect { border-left: 5px solid #dc3545; }
+        p { margin: 0.5em 0; }
+        .label { font-weight: bold; color: #555; }
+        .correct-answer { color: #28a745; }
+        .user-answer { color: #dc3545; text-decoration: line-through; }
+        a.button { display: inline-block; text-align: center; width: 200px; padding: 12px 20px; margin-top: 1em; background-color: #007BFF; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; text-decoration: none; }
+        a.button:hover { background-color: #0056b3; }
+        .filter-buttons { text-align: center; margin-bottom: 20px; }
+        .filter-btn { padding: 8px 15px; margin: 0 5px; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; background-color: #f8f9fa; font-size: 15px; font-weight: bold; transition: all 0.2s; }
+        .filter-btn.active { background-color: #007BFF; color: white; border-color: #007BFF; }
+        .filter-btn:hover:not(.active) { background-color: #e2e6ea; }
+    </style>
+    <!-- 폭죽 애니메이션을 위한 라이브러리 추가 -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>💯 채점 결과</h1>
+        {% set percentage = 0 %}
+        {% if total %}{% set percentage = (score / total * 100) | round | int %}{% endif %}
+        <h2 id="score-info" data-percentage="{{ percentage }}" data-total="{{ total }}">총 {{ total }}문제 중 <span style="color: #28a745;">{{ score }}개 맞고</span>, <span style="color: #dc3545;">{{ total - score }}개 틀렸습니다!</span><br>
+        <span style="font-size: 1.2em; color: #007BFF; display: inline-block; margin-top: 10px;">🏆 환산 점수: {{ percentage }}점 / 100점</span></h2>
+        
+        <!-- 필터링 버튼 추가 -->
+        <div class="filter-buttons">
+            <button class="filter-btn active" onclick="filterResults('all', this)">모두 보기</button>
+            <button class="filter-btn" onclick="filterResults('incorrect', this)">❌ 틀린 문제</button>
+            <button class="filter-btn" onclick="filterResults('correct', this)">✅ 맞은 문제</button>
+        </div>
+
+        <hr>
+        {% for result in results %}
+        {% set is_wrong = not result.is_correct or (result.correct_synonyms and not result.is_synonyms_correct) %}
+        <div class="result-block {% if is_wrong %}incorrect{% else %}correct{% endif %}" data-status="{% if is_wrong %}incorrect{% else %}correct{% endif %}">
+            <h4>{{ loop.index }}. {{ result.question_display }}</h4>
+            <p><span class="label">{% if question_type == 'ko_to_en' %}영어 단어{% else %}뜻{% endif %}:</span> 
+                {% if result.is_correct %}
+                    <span class="correct-answer">{{ result.user_answer }} (O)</span>
+                {% else %}
+                    <span class="user-answer">{{ result.user_answer }}</span> → <span class="correct-answer">{{ result.correct_answer }}</span>
+                {% endif %}
+            </p>
+            {% if result.correct_synonyms %}
+            <p><span class="label">유사어:</span> 
+                {% if result.is_synonyms_correct %}
+                    <span class="correct-answer">{{ result.user_synonyms }} (O)</span>
+                {% else %}
+                    <span class="user-answer">{{ result.user_synonyms if result.user_synonyms else '(미입력)' }}</span> → <span class="correct-answer">{{ result.correct_synonyms }}</span>
+                {% endif %}
+            </p>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        {# 틀린 문제가 있을 경우, 다시 풀기 버튼을 보여주는 폼 #}
+        {% set status = namespace(has_incorrect=false) %}
+        {% for result in results %}{% if not result.is_correct or (result.correct_synonyms and not result.is_synonyms_correct) %}{% set status.has_incorrect = true %}{% endif %}{% endfor %}
+
+        {% if status.has_incorrect %}
+        <form action="/retake_test" method="post" style="text-align: center; margin-top: 2em;">
+            <input type="hidden" name="question_type" value="{{ question_type }}">
+            {% for result in results %}
+                {% if not result.is_correct or (result.correct_synonyms and not result.is_synonyms_correct) %}
+                    <input type="hidden" name="ids_to_retake" value="{{ result.id }}">
+                {% endif %}
+            {% endfor %}
+            <button type="submit" class="button" style="background-color: #dc3545; border-color: #dc3545; width: auto;">틀린 문제 다시 풀기</button>
+        </form>
+        {% endif %}
+
+        <div style="text-align: center;">
+            <a href="/" class="button" style="margin-top: 10px;">홈으로 돌아가기</a>
+        </div>
+    </div>
+
+    <script>
+        function filterResults(status, btnElement) {
+            // 모든 버튼의 활성화(파란색) 상태 해제 후 클릭된 버튼만 활성화
+            var buttons = document.querySelectorAll('.filter-btn');
+            buttons.forEach(function(btn) { btn.classList.remove('active'); });
+            btnElement.classList.add('active');
+
+            // 상태(correct, incorrect, all)에 맞춰 결과 블록 숨기기/보이기
+            var blocks = document.querySelectorAll('.result-block');
+            blocks.forEach(function(block) {
+                if (status === 'all' || block.getAttribute('data-status') === status) {
+                    block.style.display = 'block';
+                } else {
+                    block.style.display = 'none';
+                }
+            });
+        }
+
+        // HTML 태그(h2)에 숨겨둔 점수 데이터를 자바스크립트로 가져옵니다. (에디터 오류 방지)
+        var scoreInfo = document.getElementById('score-info');
+        var finalPercentage = parseInt(scoreInfo.getAttribute('data-percentage')) || 0;
+        var finalTotal = parseInt(scoreInfo.getAttribute('data-total')) || 0;
+
+        if (finalPercentage === 100 && finalTotal > 0) {
+            // 100점 만점 달성 시 3초 동안 양옆에서 폭죽 터지는 애니메이션 실행
+            var duration = 3 * 1000;
+            var end = Date.now() + duration;
+
+            (function frame() {
+                confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 }, zIndex: 1000 });
+                confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 }, zIndex: 1000 });
+                if (Date.now() < end) { requestAnimationFrame(frame); }
+            }());
+        }
+    </script>
+</body>
+</html>

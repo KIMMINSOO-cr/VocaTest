@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>영단어 시험</title>
+    <style>
+        /* 간단한 스타일링 */
+        body { font-family: sans-serif; margin: 2em; background-color: #f4f4f9; }
+        h1 { color: #333; }
+        form { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .question-block { margin-bottom: 1.5em; border-bottom: 1px solid #eee; padding-bottom: 1.5em; }
+        .question-block:last-child { border-bottom: none; }
+        label { font-weight: bold; color: #555; }
+        input[type="text"] { width: 95%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; }
+        input[type="submit"] { display: block; width: 100%; padding: 12px 20px; margin-top: 1em; background-color: #007BFF; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        input[type="submit"]:hover { background-color: #0056b3; }
+        .header-actions { text-align: right; margin-bottom: 10px; }
+        .btn-add { background-color: #28a745; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; }
+        .btn-add:hover { background-color: #218838; }
+    </style>
+</head>
+<body>
+    <div class="header-actions">
+        <a href="/" class="btn-add">🏠 홈으로 돌아가기</a>
+    </div>
+    <h1>{{ title | default('📝 영단어 랜덤 시험지') }}</h1>
+    <form action="/submit" method="post"> {# 채점 로직은 다음 단계에서 만듭니다 #}
+        <input type="hidden" name="question_type" value="{{ question_type }}">
+        {% for question in questions %}
+        <div class="question-block">
+            <input type="hidden" name="word_id_{{ loop.index }}" value="{{ question.id }}">
+            <input type="hidden" name="word_text_{{ loop.index }}" value="{{ question.word }}">
+            <input type="hidden" name="q_type_{{ loop.index }}" value="{{ question.q_type }}">
+            
+            {% if question.q_type == 'ko_to_en' %}
+                <input type="hidden" name="asked_meaning_{{ loop.index }}" value="{{ question.random_meaning }}">
+                <p><strong>문제 {{ loop.index }}.</strong> {{ question.random_meaning }}</p>
+                <label for="word_ans_{{ question.id }}">영어 단어:</label>
+                <input type="text" id="word_ans_{{ question.id }}" name="word_ans_{{ loop.index }}">
+            {% else %}
+                <p><strong>문제 {{ loop.index }}.</strong> {{ question.word }}</p>
+                <label for="meaning_{{ question.id }}">뜻:</label>
+                <input type="text" id="meaning_{{ question.id }}" name="meaning_{{ loop.index }}">
+            {% endif %}
+            <br><br>
+            <label for="synonyms_{{ question.id }}">유사어:</label>
+            <input type="text" id="synonyms_{{ question.id }}" name="synonyms_{{ loop.index }}">
+        </div>
+        {% endfor %}
+        <input type="submit" value="채점하기">
+    </form>
+</body>
+</html>

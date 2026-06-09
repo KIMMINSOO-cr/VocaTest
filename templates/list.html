@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>전체 단어장 관리</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; background-color: #f4f4f9; }
+        h1 { color: #333; text-align: center; }
+        .container { background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 900px; margin: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: middle; }
+        th { background-color: #007BFF; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        .btn-delete { background-color: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+        .btn-delete:hover { background-color: #c82333; }
+        .nav-link { display: block; text-align: center; margin-top: 1.5em; text-decoration: none; color: #007BFF; font-weight: bold; }
+        .nav-link:hover { text-decoration: underline; }
+        .empty-msg { text-align: center; color: #777; padding: 2em; font-size: 1.1em; }
+        .header-actions { text-align: right; margin-bottom: 10px; }
+        .btn-home { background-color: #6c757d; color: white; padding: 8px 15px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; font-size: 14px; }
+        .btn-home:hover { background-color: #5a6268; }
+        .btn-edit { background-color: #ffc107; color: #333; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; text-decoration: none; display: block; margin-bottom: 5px; width: 100%; box-sizing: border-box; text-align: center; }
+        .btn-edit:hover { background-color: #e0a800; }
+        .pagination { margin-top: 20px; text-align: center; }
+        .pagination a, .pagination span { display: inline-block; padding: 8px 12px; margin: 0 4px; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #007BFF; }
+        .pagination a:hover { background-color: #f4f4f9; }
+        .pagination .active { background-color: #007BFF; color: white; border-color: #007BFF; }
+        /* 플래시카드 모드 CSS */
+        .flashcard-mode .hide-text { color: transparent; background-color: #e9ecef; border-radius: 4px; display: inline-block; padding: 0 5px; transition: color 0.2s, background-color 0.2s; cursor: pointer; min-width: 50px; }
+        .flashcard-mode .hide-text:hover { color: inherit; background-color: transparent; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-actions">
+            <a href="/" class="btn-home">🏠 홈으로 가기</a>
+        </div>
+        <h1>📖 전체 단어장 (총 {{ total_count }}개)</h1>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <button id="toggle-flashcard" class="btn-home" style="background-color: #6f42c1; border: none; cursor:pointer;">🙈 뜻 가리기 (플래시카드)</button>
+            <form action="/voca_list" method="get">
+                <label for="day_filter" style="font-weight: bold;">📅 Day 필터:</label>
+                <select name="day" id="day_filter" onchange="this.form.submit()" style="padding: 8px; font-size: 16px; border-radius: 4px; border: 1px solid #ccc;">
+                    <option value="">전체 보기</option>
+                    {% for d in days %}
+                        <option value="{{ d }}" {% if selected_day == d %}selected{% endif %}>Day {{ d }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+
+        {% if words %}
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 10%;">Day</th>
+                    <th style="width: 25%;">영어 단어</th>
+                    <th style="width: 25%;">뜻</th>
+                    <th style="width: 25%;">유사어</th>
+                    <th style="width: 15%; text-align: center;">관리</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for word in words %}
+                <tr>
+                    {% if word.show_word %}
+                    <td rowspan="{{ word.rowspan }}">Day {{ word.day }}</td>
+                    <td rowspan="{{ word.rowspan }}"><strong>{{ word.word }}</strong></td>
+                    {% endif %}
+                    <td><span class="hide-text">{{ word.meaning }}</span></td>
+                    <td><span class="hide-text">{{ word.synonyms }}</span></td>
+                    <td style="text-align: center;">
+                        <a href="/edit_word/{{ word.id }}" class="btn-edit">수정</a>
+                        <form action="/delete_word/{{ word.id }}" method="post" onsubmit="return confirm('정말 이 단어를 삭제하시겠습니까?');" style="margin: 0;">
+                            <button type="submit" class="btn-delete" style="width: 100%;">삭제</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-msg">등록된 단어가 없습니다. 단어를 먼저 추가해주세요!</div>
+        {% endif %}
+        
+        {# 페이지네이션 #}
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% if page > 1 %}
+                <a href="/voca_list?page={{ page - 1 }}{% if selected_day %}&day={{ selected_day }}{% endif %}">이전</a>
+            {% endif %}
+            
+            {% set start_page = page - 5 %}
+            {% set end_page = page + 5 %}
+            {% if start_page < 1 %}{% set start_page = 1 %}{% endif %}
+            {% if end_page > total_pages %}{% set end_page = total_pages %}{% endif %}
+            
+            {% for p in range(start_page, end_page + 1) %}
+                {% if p == page %}
+                    <span class="active">{{ p }}</span>
+                {% else %}
+                    <a href="/voca_list?page={{ p }}{% if selected_day %}&day={{ selected_day }}{% endif %}">{{ p }}</a>
+                {% endif %}
+            {% endfor %}
+
+            {% if page < total_pages %}
+                <a href="/voca_list?page={{ page + 1 }}{% if selected_day %}&day={{ selected_day }}{% endif %}">다음</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <a href="/" class="nav-link">⬅️ 홈으로 돌아가기</a>
+    </div>
+    <script>
+        // 뜻 가리기 (플래시카드) 버튼 동작 스크립트
+        document.getElementById('toggle-flashcard').addEventListener('click', function() {
+            document.body.classList.toggle('flashcard-mode');
+            if (document.body.classList.contains('flashcard-mode')) this.innerText = '👀 뜻 보이기 (일반 모드)';
+            else this.innerText = '🙈 뜻 가리기 (플래시카드)';
+        });
+    </script>
+</body>
+</html>
