@@ -131,6 +131,34 @@ def get_words_by_ids(user_id, id_list):
             connection.close()
     return words_data
 
+# 특정 단어 철자들의 모든 뜻과 유사어를 가져오는 함수 (동음이의어/다의어 정답 인정용)
+def get_all_accepted_answers_for_words(user_id, word_list):
+    connection = get_db_connection()
+    accepted_dict = {}
+    if connection and word_list:
+        try:
+            cursor = connection.cursor()
+            format_strings = ','.join(['?'] * len(word_list))
+            query = f"SELECT word, meaning, synonyms FROM words WHERE user_id = ? AND LOWER(word) IN ({format_strings})"
+            word_list_lower = [w.lower() for w in word_list]
+            cursor.execute(query, (user_id,) + tuple(word_list_lower))
+            results = cursor.fetchall()
+            for row in results:
+                word_lower = row['word'].lower()
+                if word_lower not in accepted_dict:
+                    accepted_dict[word_lower] = {'meanings': set(), 'original_meanings': set(), 'synonyms': set()}
+                for m in row['meaning'].split(','):
+                    if m.strip():
+                        accepted_dict[word_lower]['meanings'].add(m.strip().lower())
+                        accepted_dict[word_lower]['original_meanings'].add(m.strip())
+                if row['synonyms']:
+                    for s in row['synonyms'].split(','):
+                        if s.strip():
+                            accepted_dict[word_lower]['synonyms'].add(s.strip().lower())
+        finally:
+            connection.close()
+    return accepted_dict
+
 # 전체 단어 목록 가져오는 함수 (페이지네이션 적용)
 def get_all_words(user_id, day=None, page=1, per_page=50):
     connection = get_db_connection()

@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
-from vocab_db import generate_test, get_words_by_ids, add_multiple_words, get_available_days, get_all_words, delete_word, get_total_words_count, get_word_by_id, update_word, get_user_by_username, create_user
+from vocab_db import generate_test, get_words_by_ids, get_all_accepted_answers_for_words, add_multiple_words, get_available_days, get_all_words, delete_word, get_total_words_count, get_word_by_id, update_word, get_user_by_username, create_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import random
@@ -109,13 +109,18 @@ def submit_test():
     # 2. 폼 데이터에서 문제 단어 목록과 문제 개수 추출
     num_questions = 0
     ids_on_test = []
+    words_on_test = []
     for key in user_answers:
         if key.startswith('word_id_'):
             num_questions += 1
+            idx = key.replace('word_id_', '')
             ids_on_test.append(user_answers[key])
+            word_text = user_answers.get(f'word_text_{idx}', '').strip()
+            if word_text: words_on_test.append(word_text)
 
     # 3. DB에서 정답 데이터 가져오기
     correct_answers = get_words_by_ids(session['user_id'], ids_on_test)
+    all_accepted_answers = get_all_accepted_answers_for_words(session['user_id'], words_on_test)
 
     # 4. 채점 시작
     results = []
@@ -133,11 +138,16 @@ def submit_test():
         if current_q_type == 'random': # 프론트에서 타입이 누락되었을 경우를 대비한 2차 안전 장치
             current_q_type = 'ko_to_en' if f'word_ans_{i}' in user_answers else 'en_to_ko'
 
+        word_text_lower = word_text.lower()
+        accepted_data = all_accepted_answers.get(word_text_lower, {'meanings': set(), 'original_meanings': set(), 'synonyms': set()})
+
         # 유사어 채점 (대소문자 무시, 입력한 것 중 하나라도 정답에 포함되면 정답)
         user_synonyms_list = {s.strip().lower() for s in user_synonyms_str.split(',') if s.strip()}
         correct_synonyms_str = correct_data.get('synonyms', '')
-        correct_synonyms_list = {s.strip().lower() for s in correct_synonyms_str.split(',') if s.strip()}
         
+        # DB에 등록된 동일한 철자 단어들의 유사어까지 모두 인정
+        correct_synonyms_list = accepted_data.get('synonyms', set())
+
         # DB에 등록된 유사어가 아예 없을 때는 억울하게 틀리지 않도록 통과 처리
         if not correct_synonyms_str.strip():
             is_synonyms_correct = True
@@ -152,10 +162,16 @@ def submit_test():
             question_display = user_answers.get(f'asked_meaning_{i}', correct_data['meaning'])
         else:
             user_ans = user_answers.get(f'meaning_{i}', '').strip()
-            correct_ans_str = correct_data['meaning']
+            
+            # 해당 단어에 등록된 모든 뜻을 합쳐서 정답란에 보여줌
+            if accepted_data.get('original_meanings'):
+                correct_ans_str = ', '.join(sorted(accepted_data['original_meanings']))
+            else:
+                correct_ans_str = correct_data['meaning']
+                
             # 사용자가 쉼표(,)로 여러 뜻을 입력했을 경우 쪼개서 검사 (하나라도 맞으면 정답)
             user_ans_list = {m.strip().lower() for m in user_ans.split(',') if m.strip()}
-            correct_meanings_list = {m.strip().lower() for m in correct_data['meaning'].split(',') if m.strip()}
+            correct_meanings_list = accepted_data.get('meanings', set())
             is_correct = len(user_ans_list & correct_meanings_list) > 0
             question_display = correct_data['word']
 
